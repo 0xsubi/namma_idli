@@ -91,8 +91,15 @@ img {
   text-transform: uppercase;
 }
 
-.site-header__tag {
+.site-header__status {
   margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.site-header__tag {
   border: var(--border-w) solid var(--black);
   background: var(--orange);
   color: var(--white);
@@ -102,6 +109,17 @@ img {
   box-shadow: var(--shadow-sm);
   font-size: 0.85rem;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.site-header__tag--closed {
+  background: var(--black);
+}
+
+.site-header__next {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--orange);
   white-space: nowrap;
 }
 
@@ -147,6 +165,37 @@ img {
   font-weight: 600;
   font-size: clamp(1rem, 2vw, 1.25rem);
   max-width: 42ch;
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: var(--border-w) solid var(--black);
+  border-radius: var(--radius);
+  padding: 12px 26px;
+  font-weight: 700;
+  font-size: 1rem;
+  text-transform: uppercase;
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn:hover {
+  transform: translate(-3px, -3px);
+  box-shadow: var(--shadow);
+}
+
+.btn:active {
+  transform: translate(0, 0);
+  box-shadow: none;
+}
+
+.btn--maps {
+  background: var(--white);
+  color: var(--black);
 }
 
 /* ---------- Menu ---------- */
@@ -209,14 +258,54 @@ img {
 .card__art {
   aspect-ratio: 1 / 1;
   border-bottom: var(--border-w) solid var(--black);
-  background: #0d8ad6;
   overflow: hidden;
+  perspective: 1000px;
 }
 
-.card__art img {
+.card__art-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.6s;
+  transform-style: preserve-3d;
+}
+
+.card:hover .card__art-inner {
+  transform: rotateY(180deg);
+}
+
+.card__art-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.card__art-face--front {
+  background: #0d8ad6;
+}
+
+.card__art-face--front img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.card__art-face--back {
+  background: var(--orange);
+  color: var(--white);
+  transform: rotateY(180deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  text-align: center;
+}
+
+.card__art-face--back p {
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.45;
 }
 
 .card__body {

@@ -37,6 +37,7 @@ const MENU = [
 
 export default function App() {
   const [now, setNow] = useState(() => new Date());
+  const [flippedCard, setFlippedCard] = useState(null);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60 * 1000);
@@ -99,8 +100,21 @@ export default function App() {
         <div className="menu__grid">
           {MENU.map((item) => (
             <div className="card" key={item.name}>
-              <div className="card__art">
-                <div className="card__art-inner">
+              <div
+                className="card__art"
+                onClick={() =>
+                  setFlippedCard((current) =>
+                    current === item.name ? null : item.name
+                  )
+                }
+              >
+                <div
+                  className={
+                    flippedCard === item.name
+                      ? "card__art-inner is-flipped"
+                      : "card__art-inner"
+                  }
+                >
                   <div className="card__art-face card__art-face--front">
                     <img src={item.img} alt={`${item.name} illustration`} />
                   </div>

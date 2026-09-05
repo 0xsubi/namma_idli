@@ -260,6 +260,7 @@ img {
   border-bottom: var(--border-w) solid var(--black);
   overflow: hidden;
   perspective: 1000px;
+  cursor: pointer;
 }
 
 .card__art-inner {
@@ -270,8 +271,14 @@ img {
   transform-style: preserve-3d;
 }
 
-.card:hover .card__art-inner {
+.card__art-inner.is-flipped {
   transform: rotateY(180deg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .card:hover .card__art-inner {
+    transform: rotateY(180deg);
+  }
 }
 
 .card__art-face {

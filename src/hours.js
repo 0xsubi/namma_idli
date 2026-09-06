@@ -26,10 +26,17 @@ export function formatNextOpen(date = new Date()) {
   const next = nextOpenDate(date);
   if (!next) return "";
 
-  const dayLabel =
-    next.toDateString() === date.toDateString()
-      ? "today"
-      : next.toLocaleDateString("en-US", { weekday: "long" });
+  const tomorrow = new Date(date);
+  tomorrow.setDate(date.getDate() + 1);
+
+  let dayLabel;
+  if (next.toDateString() === date.toDateString()) {
+    dayLabel = "today";
+  } else if (next.toDateString() === tomorrow.toDateString()) {
+    dayLabel = "tomorrow";
+  } else {
+    dayLabel = next.toLocaleDateString("en-US", { weekday: "long" });
+  }
   const timeLabel = next.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",

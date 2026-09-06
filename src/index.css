@@ -100,20 +100,46 @@ img {
 }
 
 .site-header__tag {
+  display: inline-block;
   border: var(--border-w) solid var(--black);
-  background: var(--orange);
-  color: var(--white);
+  background: var(--white);
+  color: #1f8a3b;
   font-weight: 700;
-  padding: 8px 16px;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
+  padding: 6px 14px;
+  border-radius: 4px;
   font-size: 0.85rem;
   text-transform: uppercase;
   white-space: nowrap;
+  transform-origin: top center;
 }
 
 .site-header__tag--closed {
-  background: var(--black);
+  color: #c0392b;
+}
+
+.site-header__tag:hover {
+  animation: sign-sway 0.6s ease-in-out;
+}
+
+@keyframes sign-sway {
+  0% {
+    transform: rotate(0deg);
+  }
+  20% {
+    transform: rotate(-6deg);
+  }
+  40% {
+    transform: rotate(5deg);
+  }
+  60% {
+    transform: rotate(-3deg);
+  }
+  80% {
+    transform: rotate(2deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
 }
 
 .site-header__next {

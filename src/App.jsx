@@ -21,7 +21,7 @@ const MENU = [
     name: "Lemon Rice",
     price: 50,
     img: lemonRiceImg,
-    desc: "Tangy, turmeric-gold rice tempered with mustard seeds, curry leaves and peanuts.",
+    desc: "Tangy, turmeric-gold rice tempered with mustard seeds, curry leaves, peanuts and a zest of lemon.",
   },
   {
     name: "Puliogare",
@@ -104,7 +104,7 @@ export default function App() {
                   : "site-header__tag site-header__tag--closed"
               }
             >
-              {open ? "Open Now" : "We're Closed"}
+              {open ? "Open Now" : "We are closed now"}
             </span>
             {!open && (
               <span className="site-header__next">{formatNextOpen(now)}</span>

@@ -193,9 +193,14 @@ img {
   box-shadow: none;
 }
 
-.btn--maps {
+.btn--maps,
+.btn--whatsapp {
   background: var(--white);
   color: var(--black);
+}
+
+.btn--whatsapp svg {
+  flex-shrink: 0;
 }
 
 /* ---------- Menu ---------- */
@@ -318,6 +323,12 @@ img {
 .card__body {
   padding: 16px 18px 20px;
   display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card__info {
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
@@ -343,6 +354,46 @@ img {
   background: var(--orange);
 }
 
+/* ---------- Quantity stepper ---------- */
+.card__qty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.qty-btn {
+  width: 32px;
+  height: 32px;
+  border: var(--border-w) solid var(--black);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--black);
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.qty-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 var(--black);
+}
+
+.qty-btn:active {
+  transform: translate(0, 0);
+  box-shadow: none;
+}
+
+.qty-count {
+  min-width: 20px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
 /* ---------- Footer ---------- */
 .site-footer {
   background: var(--black);
@@ -359,4 +410,43 @@ img {
 .site-footer p {
   font-weight: 600;
   font-size: 0.9rem;
+}
+
+/* ---------- Cart bar ---------- */
+.app--cart-open {
+  padding-bottom: 84px;
+}
+
+.cart-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--black);
+  border-top: var(--border-w) solid var(--white);
+  z-index: 20;
+  padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+}
+
+.cart-bar__inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.cart-bar__summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--white);
+}
+
+.cart-bar__summary strong {
+  color: var(--orange);
+  text-transform: uppercase;
+  font-size: 0.95rem;
 }

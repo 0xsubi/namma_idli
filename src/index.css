@@ -440,7 +440,7 @@ img {
 
 /* ---------- Cart bar ---------- */
 .app--cart-open {
-  padding-bottom: 84px;
+  padding-bottom: 140px;
 }
 
 .cart-bar {
@@ -475,4 +475,40 @@ img {
   color: var(--orange);
   text-transform: uppercase;
   font-size: 0.95rem;
+}
+
+.cart-bar__fields {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 220px;
+}
+
+.cart-bar__input {
+  flex: 1;
+  min-width: 140px;
+  border: var(--border-w) solid var(--white);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: var(--black);
+  color: var(--white);
+}
+
+.cart-bar__input::placeholder {
+  color: #aaa;
+}
+
+.cart-bar__input:focus {
+  outline: 3px solid var(--orange);
+  outline-offset: 1px;
+}
+
+.cart-bar__error {
+  width: 100%;
+  color: var(--orange);
+  font-weight: 700;
+  font-size: 0.85rem;
 }

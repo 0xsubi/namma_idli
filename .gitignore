@@ -31,3 +31,6 @@ pnpm-debug.log*
 
 # Vite
 .vite/
+
+# Backend
+backend/namma-idli-backend

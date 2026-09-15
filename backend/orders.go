@@ -44,12 +44,17 @@ func (s *server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 		}
 
 		var price float64
-		err := s.db.QueryRow(`SELECT price FROM items WHERE LOWER(name) = LOWER($1)`, it.ItemName).Scan(&price)
+		var status string
+		err := s.db.QueryRow(`SELECT price, status FROM items WHERE LOWER(name) = LOWER($1)`, it.ItemName).Scan(&price, &status)
 		if errors.Is(err, sql.ErrNoRows) {
 			writeError(w, http.StatusBadRequest, "unknown item: "+it.ItemName)
 			return
 		} else if err != nil {
 			writeError(w, http.StatusInternalServerError, "could not look up item")
+			return
+		}
+		if status != "available" {
+			writeError(w, http.StatusBadRequest, it.ItemName+" is not available right now")
 			return
 		}
 

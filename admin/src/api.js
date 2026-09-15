@@ -1,6 +1,6 @@
 import { getToken } from "./auth.js";
 
-const API_ORIGIN =
+export const API_ORIGIN =
   import.meta.env.RUNNING_LOCALLY === "true"
     ? "http://localhost:8080"
     : "https://namma-idli-api.0xlab.in";
@@ -50,6 +50,21 @@ export const api = {
   updateItem: (id, data) =>
     request(`/items/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteItem: (id) => request(`/items/${id}`, { method: "DELETE" }),
+  uploadItemImage: async (id, file) => {
+    const form = new FormData();
+    form.append("image", file);
+    const res = await fetch(`${BASE}/items/${id}/image`, {
+      method: "POST",
+      headers: { "X-Admin-Token": getToken() },
+      body: form,
+    });
+    const isJson = res.headers.get("content-type")?.includes("application/json");
+    const body = isJson ? await res.json().catch(() => null) : null;
+    if (!res.ok) {
+      throw new Error(body?.error || `Request failed (${res.status})`);
+    }
+    return body;
+  },
 
   createBill: (data) =>
     request("/bills", { method: "POST", body: JSON.stringify(data) }),

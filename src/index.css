@@ -287,6 +287,7 @@ img {
 }
 
 .card__art {
+  position: relative;
   aspect-ratio: 1 / 1;
   border-bottom: var(--border-w) solid var(--black);
   overflow: hidden;
@@ -378,6 +379,40 @@ img {
 
 .card--featured .card__price {
   background: var(--orange);
+}
+
+/* ---------- Unavailable items ---------- */
+.card--unavailable {
+  opacity: 0.55;
+  filter: grayscale(0.6);
+}
+
+.card--unavailable:hover {
+  transform: none;
+  box-shadow: var(--shadow);
+}
+
+.card__status-tag {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: var(--black);
+  color: var(--white);
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  z-index: 1;
+}
+
+.card__unavailable-label {
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  color: #666;
+  padding: 6px 0;
 }
 
 /* ---------- Quantity stepper ---------- */

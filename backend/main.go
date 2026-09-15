@@ -24,6 +24,7 @@ type server struct {
 	adminToken      string
 	fcmProjectID    string
 	fcmTokenSource  oauth2.TokenSource
+	uploadsDir      string
 }
 
 func main() {
@@ -67,12 +68,21 @@ func main() {
 		log.Println("ADMIN_TOKEN not set — defaulting to the placeholder token. Set ADMIN_TOKEN before deploying anywhere reachable from outside your machine.")
 	}
 
+	uploadsDir := os.Getenv("UPLOADS_DIR")
+	if uploadsDir == "" {
+		uploadsDir = "./uploads"
+	}
+	if err := os.MkdirAll(uploadsDir, 0o755); err != nil {
+		log.Fatalf("create uploads dir: %v", err)
+	}
+
 	s := &server{
 		db:              db,
 		vapidPublicKey:  os.Getenv("VAPID_PUBLIC_KEY"),
 		vapidPrivateKey: os.Getenv("VAPID_PRIVATE_KEY"),
 		vapidSubject:    vapidSubject,
 		adminToken:      adminToken,
+		uploadsDir:      uploadsDir,
 	}
 	if s.vapidPublicKey == "" || s.vapidPrivateKey == "" {
 		log.Println("VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY not set — order push notifications are disabled. Run `go run . genvapid` to generate a keypair.")
@@ -94,6 +104,11 @@ func main() {
 	mux.HandleFunc("GET /api/items", admin(s.handleListItems))
 	mux.HandleFunc("PUT /api/items/{id}", admin(s.handleUpdateItem))
 	mux.HandleFunc("DELETE /api/items/{id}", admin(s.handleDeleteItem))
+	mux.HandleFunc("POST /api/items/{id}/image", admin(s.handleUploadItemImage))
+
+	// The storefront's menu is public — no admin token needed to browse it.
+	mux.HandleFunc("GET /api/menu", s.handleListItems)
+	mux.Handle("GET /uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(s.uploadsDir))))
 
 	mux.HandleFunc("POST /api/bills", admin(s.handleCreateBill))
 	mux.HandleFunc("GET /api/bills", admin(s.handleListBills))

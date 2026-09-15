@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,6 +12,8 @@ import (
 
 	webpush "github.com/SherClockHolmes/webpush-go"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
 type server struct {
@@ -18,6 +22,8 @@ type server struct {
 	vapidPrivateKey string
 	vapidSubject    string
 	adminToken      string
+	fcmProjectID    string
+	fcmTokenSource  oauth2.TokenSource
 }
 
 func main() {
@@ -72,6 +78,13 @@ func main() {
 		log.Println("VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY not set — order push notifications are disabled. Run `go run . genvapid` to generate a keypair.")
 	}
 
+	if err := s.loadFCMCredentials(); err != nil {
+		log.Fatalf("load FCM credentials: %v", err)
+	}
+	if s.fcmProjectID == "" {
+		log.Println("FCM_SERVICE_ACCOUNT_FILE / FCM_SERVICE_ACCOUNT_JSON not set — native Android push notifications are disabled.")
+	}
+
 	mux := http.NewServeMux()
 	admin := s.requireAdminToken
 
@@ -103,6 +116,8 @@ func main() {
 	mux.HandleFunc("GET /api/push/vapid-public-key", admin(s.handleVapidPublicKey))
 	mux.HandleFunc("POST /api/push/subscribe", admin(s.handleSubscribe))
 	mux.HandleFunc("POST /api/push/unsubscribe", admin(s.handleUnsubscribe))
+	mux.HandleFunc("POST /api/push/fcm/register", admin(s.handleRegisterFcmToken))
+	mux.HandleFunc("POST /api/push/fcm/unregister", admin(s.handleUnregisterFcmToken))
 
 	addr := ":8080"
 	log.Printf("listening on %s", addr)
@@ -127,4 +142,42 @@ func waitForDB(db *sql.DB, timeout time.Duration) error {
 
 func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// loadFCMCredentials reads a Firebase service account key from either
+// FCM_SERVICE_ACCOUNT_FILE (a mounted JSON file, preferred under Docker) or
+// FCM_SERVICE_ACCOUNT_JSON (the raw JSON inline). Leaving both unset just
+// disables native push — it isn't a fatal error.
+func (s *server) loadFCMCredentials() error {
+	var creds []byte
+	if path := os.Getenv("FCM_SERVICE_ACCOUNT_FILE"); path != "" {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read FCM_SERVICE_ACCOUNT_FILE: %w", err)
+		}
+		creds = b
+	} else if raw := os.Getenv("FCM_SERVICE_ACCOUNT_JSON"); raw != "" {
+		creds = []byte(raw)
+	} else {
+		return nil
+	}
+
+	var sa struct {
+		ProjectID string `json:"project_id"`
+	}
+	if err := json.Unmarshal(creds, &sa); err != nil {
+		return fmt.Errorf("parse FCM service account JSON: %w", err)
+	}
+	if sa.ProjectID == "" {
+		return fmt.Errorf("FCM service account JSON is missing project_id")
+	}
+
+	cfg, err := google.JWTConfigFromJSON(creds, "https://www.googleapis.com/auth/firebase.messaging")
+	if err != nil {
+		return fmt.Errorf("parse FCM service account JSON: %w", err)
+	}
+
+	s.fcmProjectID = sa.ProjectID
+	s.fcmTokenSource = cfg.TokenSource(context.Background())
+	return nil
 }

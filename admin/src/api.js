@@ -78,4 +78,9 @@ export const api = {
     request("/push/subscribe", { method: "POST", body: JSON.stringify(subscription) }),
   unsubscribePush: (endpoint) =>
     request("/push/unsubscribe", { method: "POST", body: JSON.stringify({ endpoint }) }),
+
+  registerFcmToken: (token) =>
+    request("/push/fcm/register", { method: "POST", body: JSON.stringify({ token }) }),
+  unregisterFcmToken: (token) =>
+    request("/push/fcm/unregister", { method: "POST", body: JSON.stringify({ token }) }),
 };

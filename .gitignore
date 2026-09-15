@@ -42,4 +42,5 @@ backend/namma-idli-backend
 **/android/local.properties
 **/android/captures/
 **/android/.idea/
+**/android/app/google-services.json
 apks/

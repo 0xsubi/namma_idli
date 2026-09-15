@@ -1,59 +1,13 @@
-import { api } from "./api.js";
+import { Capacitor } from "@capacitor/core";
+import * as webPush from "./webPush.js";
+import * as fcmPush from "./fcmPush.js";
 
-// Web Push requires a secure context (HTTPS, or localhost). It is not
-// supported on iOS Safari at all.
-export function isPushSupported() {
-  return "serviceWorker" in navigator && "PushManager" in window;
-}
+// Picks the right notification backend for the environment: FCM in the
+// native Android app (Capacitor WebView can't do the browser Push API),
+// Web Push everywhere else.
+const impl = Capacitor.isNativePlatform() ? fcmPush : webPush;
 
-export async function getPushStatus() {
-  if (!isPushSupported()) return "unsupported";
-  const reg = await navigator.serviceWorker.getRegistration();
-  if (!reg) return "disabled";
-  const sub = await reg.pushManager.getSubscription();
-  return sub ? "enabled" : "disabled";
-}
-
-function urlBase64ToUint8Array(base64String) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = atob(base64);
-  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
-}
-
-export async function enablePush() {
-  if (!isPushSupported()) {
-    throw new Error(
-      "Push notifications aren't supported in this browser (use Chrome/Edge over HTTPS)."
-    );
-  }
-
-  const permission = await Notification.requestPermission();
-  if (permission !== "granted") {
-    throw new Error("Notification permission was not granted.");
-  }
-
-  const reg = await navigator.serviceWorker.register("/sw.js");
-  await navigator.serviceWorker.ready;
-
-  const { public_key } = await api.getVapidPublicKey();
-  if (!public_key) {
-    throw new Error("Push isn't configured on the server yet (missing VAPID keys).");
-  }
-
-  const subscription = await reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(public_key),
-  });
-
-  await api.subscribePush(subscription.toJSON());
-}
-
-export async function disablePush() {
-  const reg = await navigator.serviceWorker.getRegistration();
-  const subscription = await reg?.pushManager.getSubscription();
-  if (!subscription) return;
-
-  await api.unsubscribePush(subscription.endpoint);
-  await subscription.unsubscribe();
-}
+export const isPushSupported = impl.isPushSupported;
+export const getPushStatus = impl.getPushStatus;
+export const enablePush = impl.enablePush;
+export const disablePush = impl.disablePush;

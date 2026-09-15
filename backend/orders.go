@@ -281,4 +281,5 @@ func (s *server) notifyNewOrder(o Order) {
 	body := fmt.Sprintf("%s — Rs.%.2f", strings.Join(names, ", "), o.TotalAmount)
 
 	s.sendPushToAll(title, body, o.ID)
+	s.sendFCMToAll(title, body, o.ID)
 }

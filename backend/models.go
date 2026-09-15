@@ -131,3 +131,7 @@ type PushSubscriptionRequest struct {
 type UnsubscribeRequest struct {
 	Endpoint string `json:"endpoint"`
 }
+
+type FcmTokenRequest struct {
+	Token string `json:"token"`
+}

@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 
@@ -45,6 +48,44 @@ func (s *server) handleUnsubscribe(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := s.db.Exec(`DELETE FROM push_subscriptions WHERE endpoint = $1`, req.Endpoint); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not remove subscription")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *server) handleRegisterFcmToken(w http.ResponseWriter, r *http.Request) {
+	var req FcmTokenRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		return
+	}
+	if req.Token == "" {
+		writeError(w, http.StatusBadRequest, "token is required")
+		return
+	}
+
+	_, err := s.db.Exec(
+		`INSERT INTO fcm_tokens (token) VALUES ($1) ON CONFLICT(token) DO NOTHING`,
+		req.Token,
+	)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not save token")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *server) handleUnregisterFcmToken(w http.ResponseWriter, r *http.Request) {
+	var req FcmTokenRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		return
+	}
+
+	if _, err := s.db.Exec(`DELETE FROM fcm_tokens WHERE token = $1`, req.Token); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not remove token")
 		return
 	}
 
@@ -109,6 +150,103 @@ func (s *server) sendPushToAll(title, body string, orderID int64) {
 
 		if resp.StatusCode == http.StatusGone || resp.StatusCode == http.StatusNotFound {
 			s.db.Exec(`DELETE FROM push_subscriptions WHERE id = $1`, sc.id)
+		}
+	}
+}
+
+type fcmMessage struct {
+	Message fcmMessageBody `json:"message"`
+}
+
+type fcmMessageBody struct {
+	Token        string            `json:"token"`
+	Notification fcmNotification   `json:"notification"`
+	Data         map[string]string `json:"data,omitempty"`
+}
+
+type fcmNotification struct {
+	Title string `json:"title"`
+	Body  string `json:"body"`
+}
+
+// sendFCMToAll mirrors sendPushToAll but delivers to native Android clients
+// via Firebase Cloud Messaging instead of Web Push. Called from the same
+// goroutine as sendPushToAll so it never slows down the HTTP response either.
+func (s *server) sendFCMToAll(title, body string, orderID int64) {
+	if s.fcmProjectID == "" || s.fcmTokenSource == nil {
+		return
+	}
+
+	rows, err := s.db.Query(`SELECT id, token FROM fcm_tokens`)
+	if err != nil {
+		log.Printf("fcm: could not load tokens: %v", err)
+		return
+	}
+	type tok struct {
+		id    int64
+		token string
+	}
+	var toks []tok
+	for rows.Next() {
+		var t tok
+		if err := rows.Scan(&t.id, &t.token); err != nil {
+			continue
+		}
+		toks = append(toks, t)
+	}
+	rows.Close()
+
+	if len(toks) == 0 {
+		return
+	}
+
+	accessToken, err := s.fcmTokenSource.Token()
+	if err != nil {
+		log.Printf("fcm: could not get access token: %v", err)
+		return
+	}
+
+	url := fmt.Sprintf("https://fcm.googleapis.com/v1/projects/%s/messages:send", s.fcmProjectID)
+
+	for _, t := range toks {
+		msg := fcmMessage{Message: fcmMessageBody{
+			Token:        t.token,
+			Notification: fcmNotification{Title: title, Body: body},
+			Data:         map[string]string{"order_id": fmt.Sprintf("%d", orderID)},
+		}}
+		payload, err := json.Marshal(msg)
+		if err != nil {
+			continue
+		}
+
+		req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload))
+		if err != nil {
+			continue
+		}
+		req.Header.Set("Authorization", "Bearer "+accessToken.AccessToken)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			log.Printf("fcm: send failed for token %d: %v", t.id, err)
+			continue
+		}
+		respBody, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if resp.StatusCode >= 300 {
+			log.Printf("fcm: send failed for token %d: status %d: %s", t.id, resp.StatusCode, respBody)
+
+			// FCM reports a dead/unregistered token as 404 UNREGISTERED —
+			// prune it so we stop paying for a doomed request every order.
+			var errResp struct {
+				Error struct {
+					Status string `json:"status"`
+				} `json:"error"`
+			}
+			if json.Unmarshal(respBody, &errResp) == nil && errResp.Error.Status == "UNREGISTERED" {
+				s.db.Exec(`DELETE FROM fcm_tokens WHERE id = $1`, t.id)
+			}
 		}
 	}
 }

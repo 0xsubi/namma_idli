@@ -17,6 +17,8 @@ services:
 
   backend:
     build: ./backend
+    ports:
+      - "8080:8080"
     restart: unless-stopped
     environment:
       - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-namma_idli}?sslmode=disable

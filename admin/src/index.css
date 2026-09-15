@@ -279,9 +279,43 @@ textarea {
 
 .line-item {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr auto;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 10px;
   align-items: end;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .line-item {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "item item"
+      "price qty"
+      "remove remove";
+  }
+
+  .line-item .field:nth-child(1) {
+    grid-area: item;
+  }
+
+  .line-item .field:nth-child(2) {
+    grid-area: price;
+  }
+
+  .line-item .field:nth-child(3) {
+    grid-area: qty;
+  }
+
+  .line-item .icon-btn {
+    grid-area: remove;
+    width: 100%;
+  }
 }
 
 .icon-btn {

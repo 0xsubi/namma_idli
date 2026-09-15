@@ -7,6 +7,7 @@ import teaImg from "./assets/tea_tumbler_davara_flat_illustration.svg";
 import { isOpenNow, formatNextOpen } from "./hours.js";
 
 const MAPS_URL = "https://maps.app.goo.gl/iW5BRkHxcUBG67yt7";
+const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 const MENU = [
   {
@@ -83,7 +84,7 @@ export default function App() {
 
     setPlacing(true);
     try {
-      const res = await fetch("/api/orders", {
+      const res = await fetch(`${API_BASE}/api/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

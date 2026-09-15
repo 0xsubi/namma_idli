@@ -34,3 +34,12 @@ pnpm-debug.log*
 
 # Backend
 backend/namma-idli-backend
+
+# Capacitor / Android (covers android/ and admin/android/)
+**/android/app/build/
+**/android/build/
+**/android/.gradle/
+**/android/local.properties
+**/android/captures/
+**/android/.idea/
+apks/

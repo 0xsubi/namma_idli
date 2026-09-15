@@ -7,7 +7,10 @@ import teaImg from "./assets/tea_tumbler_davara_flat_illustration.svg";
 import { isOpenNow, formatNextOpen } from "./hours.js";
 
 const MAPS_URL = "https://maps.app.goo.gl/iW5BRkHxcUBG67yt7";
-const API_BASE = import.meta.env.VITE_API_BASE || "";
+const API_BASE =
+  import.meta.env.RUNNING_LOCALLY === "true"
+    ? "http://localhost:8080"
+    : "https://namma-idli-api.0xlab.in";
 
 const MENU = [
   {

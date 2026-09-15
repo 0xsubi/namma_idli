@@ -1,6 +1,10 @@
 import { getToken } from "./auth.js";
 
-const BASE = `${import.meta.env.VITE_API_BASE || ""}/api`;
+const API_ORIGIN =
+  import.meta.env.RUNNING_LOCALLY === "true"
+    ? "http://localhost:8080"
+    : "https://namma-idli-api.0xlab.in";
+const BASE = `${API_ORIGIN}/api`;
 
 async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {

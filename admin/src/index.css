@@ -447,6 +447,31 @@ tbody tr:hover {
   font-style: italic;
 }
 
+.edit-row {
+  cursor: default;
+}
+
+.edit-row > td {
+  white-space: normal;
+  padding: 18px;
+  background: #fff8f4;
+}
+
+.edit-row__photo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.edit-row__photo img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: var(--border-w) solid var(--black);
+  flex-shrink: 0;
+}
+
 /* ---------- Stats ---------- */
 .stat-grid {
   display: grid;

@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 import logo from "./assets/namma-idli-new.svg";
-import idliImg from "./assets/idli_plate_flat_illustration.svg";
-import lemonRiceImg from "./assets/lemon_rice_flat_illustration_grainy.svg";
-import puliogareImg from "./assets/puliogare_flat_illustration_grainy.svg";
-import teaImg from "./assets/tea_tumbler_davara_flat_illustration.svg";
+import placeholderImg from "./assets/generic_dish_placeholder.svg";
 import { isOpenNow, formatNextOpen } from "./hours.js";
 
 const MAPS_URL = "https://maps.app.goo.gl/iW5BRkHxcUBG67yt7";
@@ -12,32 +9,11 @@ const API_BASE =
     ? "http://localhost:8080"
     : "https://namma-idli-api.0xlab.in";
 
-const MENU = [
-  {
-    name: "Idli",
-    price: 40,
-    img: idliImg,
-    desc: "Steamed rice cakes, soft as a cloud. Served hot with chutney and sambar.",
-  },
-  {
-    name: "Lemon Rice",
-    price: 50,
-    img: lemonRiceImg,
-    desc: "Tangy, turmeric-gold rice tempered with mustard seeds, curry leaves, peanuts and a zest of lemon.",
-  },
-  {
-    name: "Puliogare",
-    price: 50,
-    img: puliogareImg,
-    desc: "Tamarind rice packed with a punch — spicy, sour and roasted to perfection.",
-  },
-  {
-    name: "Tea",
-    price: 12,
-    img: teaImg,
-    desc: "Strong, milky filter tea brewed the traditional way. Just the right amount of sweet.",
-  },
-];
+const STATUS_LABEL = {
+  sold_out: "Sold Out",
+  unavailable: "Not Available",
+  coming_soon: "Coming Soon",
+};
 
 export default function App() {
   const [now, setNow] = useState(() => new Date());
@@ -48,10 +24,33 @@ export default function App() {
   const [placing, setPlacing] = useState(false);
   const [orderError, setOrderError] = useState("");
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [menu, setMenu] = useState([]);
+  const [menuLoading, setMenuLoading] = useState(true);
+  const [menuError, setMenuError] = useState("");
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60 * 1000);
     return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadMenu() {
+      try {
+        const res = await fetch(`${API_BASE}/api/menu`);
+        const body = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(body?.error || "Could not load the menu.");
+        if (!cancelled) setMenu(body || []);
+      } catch (err) {
+        if (!cancelled) setMenuError(err.message);
+      } finally {
+        if (!cancelled) setMenuLoading(false);
+      }
+    }
+    loadMenu();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const open = isOpenNow(now);
@@ -63,7 +62,9 @@ export default function App() {
     });
   };
 
-  const cartItems = MENU.filter((item) => quantities[item.name] > 0);
+  const cartItems = menu.filter(
+    (item) => item.status === "available" && quantities[item.name] > 0
+  );
   const totalItems = cartItems.reduce((sum, item) => sum + quantities[item.name], 0);
   const totalPrice = cartItems.reduce(
     (sum, item) => sum + quantities[item.name] * item.price,
@@ -165,59 +166,82 @@ export default function App() {
         </div>
         <p className="menu__sub">Everything made fresh, every single day.</p>
 
+        {menuLoading && <p className="menu__sub">Loading menu…</p>}
+        {menuError && <p className="menu__sub">{menuError}</p>}
+
         <div className="menu__grid">
-          {MENU.map((item) => (
-            <div className="card" key={item.name}>
+          {menu.map((item) => {
+            const unavailable = item.status !== "available";
+            return (
               <div
-                className="card__art"
-                onClick={() =>
-                  setFlippedCard((current) =>
-                    current === item.name ? null : item.name
-                  )
-                }
+                className={unavailable ? "card card--unavailable" : "card"}
+                key={item.name}
               >
                 <div
-                  className={
-                    flippedCard === item.name
-                      ? "card__art-inner is-flipped"
-                      : "card__art-inner"
+                  className="card__art"
+                  onClick={() =>
+                    setFlippedCard((current) =>
+                      current === item.name ? null : item.name
+                    )
                   }
                 >
-                  <div className="card__art-face card__art-face--front">
-                    <img src={item.img} alt={`${item.name} illustration`} />
+                  <div
+                    className={
+                      flippedCard === item.name
+                        ? "card__art-inner is-flipped"
+                        : "card__art-inner"
+                    }
+                  >
+                    <div className="card__art-face card__art-face--front">
+                      <img
+                        src={item.image_url ? `${API_BASE}${item.image_url}` : placeholderImg}
+                        alt={`${item.name} illustration`}
+                      />
+                    </div>
+                    <div className="card__art-face card__art-face--back">
+                      <p>{item.description}</p>
+                    </div>
                   </div>
-                  <div className="card__art-face card__art-face--back">
-                    <p>{item.desc}</p>
+                  {unavailable && (
+                    <span className="card__status-tag">
+                      {STATUS_LABEL[item.status] || "Unavailable"}
+                    </span>
+                  )}
+                </div>
+                <div className="card__body">
+                  <div className="card__info">
+                    <h3 className="card__name">{item.name}</h3>
+                    <span className="card__price">₹{item.price}</span>
                   </div>
+                  {unavailable ? (
+                    <div className="card__unavailable-label">
+                      {STATUS_LABEL[item.status] || "Unavailable"}
+                    </div>
+                  ) : (
+                    <div className="card__qty">
+                      <button
+                        type="button"
+                        className="qty-btn"
+                        onClick={() => updateQty(item.name, -1)}
+                        aria-label={`Remove one ${item.name}`}
+                      >
+                        −
+                      </button>
+                      <span className="qty-count">{quantities[item.name] || 0}</span>
+                      <button
+                        type="button"
+                        className="qty-btn"
+                        onClick={() => updateQty(item.name, 1)}
+                        aria-label={`Add one ${item.name}`}
+                      >
+                        +
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="card__body">
-                <div className="card__info">
-                  <h3 className="card__name">{item.name}</h3>
-                  <span className="card__price">₹{item.price}</span>
-                </div>
-                <div className="card__qty">
-                  <button
-                    type="button"
-                    className="qty-btn"
-                    onClick={() => updateQty(item.name, -1)}
-                    aria-label={`Remove one ${item.name}`}
-                  >
-                    −
-                  </button>
-                  <span className="qty-count">{quantities[item.name] || 0}</span>
-                  <button
-                    type="button"
-                    className="qty-btn"
-                    onClick={() => updateQty(item.name, 1)}
-                    aria-label={`Add one ${item.name}`}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </main>
 

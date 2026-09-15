@@ -1,0 +1,12 @@
+<svg width="100%" height="100%" viewBox="0 0 200 200" role="img" aria-label="Dish placeholder" xmlns="http://www.w3.org/2000/svg">
+  <rect width="200" height="200" fill="#0d8ad6"/>
+  <circle cx="100" cy="100" r="62" fill="#ffffff" stroke="#0a0a0a" stroke-width="6"/>
+  <circle cx="100" cy="100" r="40" fill="none" stroke="#0a0a0a" stroke-width="4" opacity="0.35"/>
+  <g stroke="#0a0a0a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <line x1="72" y1="72" x2="72" y2="128" />
+    <line x1="64" y1="72" x2="64" y2="92" />
+    <line x1="80" y1="72" x2="80" y2="92" />
+    <path d="M64 92 Q64 100 72 100 Q80 100 80 92" />
+    <path d="M130 72 C122 72 118 80 118 90 C118 98 122 102 126 104 L126 128" />
+  </g>
+</svg>

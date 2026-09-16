@@ -62,6 +62,12 @@ export default function App() {
     });
   };
 
+  const sortedMenu = [...menu].sort((a, b) => {
+    const aAvailable = a.status === "available" ? 0 : 1;
+    const bAvailable = b.status === "available" ? 0 : 1;
+    return aAvailable - bAvailable;
+  });
+
   const cartItems = menu.filter(
     (item) => item.status === "available" && quantities[item.name] > 0
   );
@@ -170,7 +176,7 @@ export default function App() {
         {menuError && <p className="menu__sub">{menuError}</p>}
 
         <div className="menu__grid">
-          {menu.map((item) => {
+          {sortedMenu.map((item) => {
             const unavailable = item.status !== "available";
             return (
               <div

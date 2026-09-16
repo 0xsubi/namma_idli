@@ -45,7 +45,7 @@ export default function BillPreview({ bill, onClose, onPrint, printing, printSta
                 <div className="receipt__line">
                   <span>
                     {"  "}
-                    {it.quantity} x Rs.{it.unit_price.toFixed(2)}
+                    {it.quantity > 0 ? `${it.quantity} x Rs.${it.unit_price.toFixed(2)}` : "Amount"}
                   </span>
                   <span>Rs.{it.line_total.toFixed(2)}</span>
                 </div>

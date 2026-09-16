@@ -78,6 +78,9 @@ export const api = {
 
   getAnalytics: (params) => request(`/analytics/summary${query(params)}`),
 
+  parseVoiceOrder: (transcript) =>
+    request("/voice/parse", { method: "POST", body: JSON.stringify({ transcript }) }),
+
   listOrders: (status) => request(`/orders${query({ status })}`),
   getOrder: (id) => request(`/orders/${id}`),
   updateOrderStatus: (id, status) =>

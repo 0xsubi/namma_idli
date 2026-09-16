@@ -47,7 +47,10 @@ func buildReceiptESCPOS(b Bill) []byte {
 
 	for _, it := range b.Items {
 		buf.WriteString(truncate(it.ItemName, receiptWidth) + "\n")
-		qtyPrice := fmt.Sprintf("  %d x Rs.%.2f", it.Quantity, it.UnitPrice)
+		qtyPrice := "  Amount"
+		if it.Quantity > 0 {
+			qtyPrice = fmt.Sprintf("  %d x Rs.%.2f", it.Quantity, it.UnitPrice)
+		}
 		lineTotal := fmt.Sprintf("Rs.%.2f", it.LineTotal)
 		buf.WriteString(padLine(qtyPrice, lineTotal, receiptWidth) + "\n")
 	}

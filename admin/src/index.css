@@ -279,7 +279,7 @@ textarea {
 
 .line-item {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 10px;
   align-items: end;
 }
@@ -293,10 +293,11 @@ textarea {
 
 @media (max-width: 640px) {
   .line-item {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr 1fr;
     grid-template-areas:
       "item item"
       "price qty"
+      "amount amount"
       "remove remove";
   }
 
@@ -310,6 +311,10 @@ textarea {
 
   .line-item .field:nth-child(3) {
     grid-area: qty;
+  }
+
+  .line-item .field:nth-child(4) {
+    grid-area: amount;
   }
 
   .line-item .icon-btn {

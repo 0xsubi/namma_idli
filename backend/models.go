@@ -20,9 +20,13 @@ type ItemRequest struct {
 }
 
 type BillItemInput struct {
-	ItemName  string  `json:"item_name"`
-	UnitPrice float64 `json:"unit_price"`
-	Quantity  int     `json:"quantity"`
+	ItemName  string   `json:"item_name"`
+	UnitPrice float64  `json:"unit_price"`
+	Quantity  int      `json:"quantity"`
+	// Amount overrides the computed unit_price*quantity line total, for
+	// orders of a quantity that doesn't cleanly count as units (e.g. a
+	// loose/partial portion). When set, Quantity is expected to be 0.
+	Amount *float64 `json:"amount"`
 }
 
 type CreateBillRequest struct {

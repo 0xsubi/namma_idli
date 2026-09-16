@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { api } from "./api.js";
-import { setToken, logout } from "./auth.js";
 
 export default function Login({ onSuccess }) {
-  const [value, setValue] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(false);
 
@@ -11,12 +11,10 @@ export default function Login({ onSuccess }) {
     e.preventDefault();
     setError("");
     setChecking(true);
-    setToken(value);
     try {
-      await api.listItems();
-      onSuccess();
+      const user = await api.login(username, password);
+      onSuccess(user);
     } catch (err) {
-      logout();
       setError(err.message);
     } finally {
       setChecking(false);
@@ -31,19 +29,31 @@ export default function Login({ onSuccess }) {
         </div>
         <h3>Admin Access</h3>
         <div className="field">
-          <label htmlFor="admin-token">Token</label>
+          <label htmlFor="username">Username</label>
           <input
-            id="admin-token"
-            type="password"
+            id="username"
+            type="text"
             autoFocus
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder="Enter access token"
+            autoComplete="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Username"
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="password">Password</label>
+          <input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
           />
         </div>
         {error && <div className="msg msg--error">{error}</div>}
         <button type="submit" className="btn btn--primary" disabled={checking}>
-          {checking ? "Checking..." : "Enter"}
+          {checking ? "Checking..." : "Log in"}
         </button>
       </form>
     </div>

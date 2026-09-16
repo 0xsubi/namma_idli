@@ -20,8 +20,9 @@ func (s *server) handleCreateBill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, it := range req.Items {
-		if it.ItemName == "" || it.Quantity <= 0 || it.UnitPrice < 0 {
-			writeError(w, http.StatusBadRequest, "each item needs item_name, quantity > 0, unit_price >= 0")
+		hasAmount := it.Amount != nil && *it.Amount > 0
+		if it.ItemName == "" || it.UnitPrice < 0 || it.Quantity < 0 || (it.Quantity == 0 && !hasAmount) {
+			writeError(w, http.StatusBadRequest, "each item needs item_name, unit_price >= 0, and either quantity > 0 or a direct amount > 0")
 			return
 		}
 	}
@@ -42,6 +43,9 @@ func insertBill(db *sql.DB, customerName, paymentMethod string, itemsIn []BillIt
 	items := make([]BillItem, 0, len(itemsIn))
 	for _, it := range itemsIn {
 		lineTotal := it.UnitPrice * float64(it.Quantity)
+		if it.Amount != nil {
+			lineTotal = *it.Amount
+		}
 		total += lineTotal
 		items = append(items, BillItem{
 			ItemName:  it.ItemName,

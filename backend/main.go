@@ -120,6 +120,8 @@ func main() {
 
 	mux.HandleFunc("GET /api/analytics/summary", admin(s.handleAnalyticsSummary))
 
+	mux.HandleFunc("POST /api/voice/parse", admin(s.handleVoiceParse))
+
 	// Order creation is public — it's what the storefront calls when a
 	// customer places an order. Everything else about orders is staff-only.
 	mux.HandleFunc("POST /api/orders", s.handleCreateOrder)

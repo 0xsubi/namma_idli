@@ -2,8 +2,23 @@ import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import { printBytes } from "../print.js";
 import BillPreview from "../BillPreview.jsx";
+import { isVoiceInputSupported, captureVoiceOrder } from "../voice.js";
+import { parseVoiceOrder } from "../voiceOrder.js";
 
-const emptyLine = () => ({ item_id: "", quantity: "1" });
+const emptyLine = () => ({ item_id: "", quantity: "1", amount: "" });
+
+function round2(n) {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+// Builds a line from a resolved quantity (used by voice ordering), computing
+// the amount that quantity implies so the field starts in sync.
+function lineFromQuantity(catalog, itemId, quantity) {
+  const item = catalog.find((it) => String(it.id) === String(itemId));
+  const qty = parseFloat(quantity);
+  const amount = item && !Number.isNaN(qty) ? String(round2(item.price * qty)) : "";
+  return { item_id: String(itemId), quantity: String(quantity), amount };
+}
 
 export default function BillsPage() {
   const [customerName, setCustomerName] = useState("");
@@ -24,6 +39,9 @@ export default function BillsPage() {
   const [printingId, setPrintingId] = useState(null);
   const [printStatus, setPrintStatus] = useState("");
   const [previewBill, setPreviewBill] = useState(null);
+
+  const [voiceStatus, setVoiceStatus] = useState("idle"); // idle | listening | resolving
+  const [voiceBanner, setVoiceBanner] = useState(null); // { type: "info" | "error", text }
 
   async function refreshBills() {
     setLoadingBills(true);
@@ -56,9 +74,42 @@ export default function BillsPage() {
     return catalog.find((it) => String(it.id) === String(id));
   }
 
-  function updateLine(index, field, value) {
+  // Quantity drives the amount by default (amount = unit price x quantity).
+  // Editing the amount directly overrides that — it clears quantity so the
+  // amount stands on its own, for orders (loose/partial portions) that don't
+  // cleanly count as whole units. Typing a quantity again takes back over
+  // and recalculates the amount from it.
+  function updateItem(index, itemId) {
     setLines((prev) =>
-      prev.map((line, i) => (i === index ? { ...line, [field]: value } : line))
+      prev.map((line, i) => {
+        if (i !== index) return line;
+        const item = catalog.find((it) => String(it.id) === String(itemId));
+        const qty = parseFloat(line.quantity);
+        const amount =
+          item && line.quantity !== "" && !Number.isNaN(qty)
+            ? String(round2(item.price * qty))
+            : line.amount;
+        return { ...line, item_id: itemId, amount };
+      })
+    );
+  }
+
+  function updateQuantity(index, value) {
+    setLines((prev) =>
+      prev.map((line, i) => {
+        if (i !== index) return line;
+        const item = itemById(line.item_id);
+        const qty = parseFloat(value);
+        const amount =
+          item && value !== "" && !Number.isNaN(qty) ? String(round2(item.price * qty)) : line.amount;
+        return { ...line, quantity: value, amount };
+      })
+    );
+  }
+
+  function updateAmount(index, value) {
+    setLines((prev) =>
+      prev.map((line, i) => (i === index ? { ...line, amount: value, quantity: "" } : line))
     );
   }
 
@@ -70,11 +121,17 @@ export default function BillsPage() {
     setLines((prev) => prev.filter((_, i) => i !== index));
   }
 
-  const runningTotal = lines.reduce((sum, line) => {
-    const item = itemById(line.item_id);
-    const qty = parseInt(line.quantity, 10) || 0;
-    return sum + (item ? item.price * qty : 0);
-  }, 0);
+  function lineTotal(line) {
+    if (line.quantity !== "") {
+      const item = itemById(line.item_id);
+      const qty = parseFloat(line.quantity);
+      if (item && !Number.isNaN(qty)) return item.price * qty;
+    }
+    const amt = parseFloat(line.amount);
+    return Number.isNaN(amt) ? 0 : amt;
+  }
+
+  const runningTotal = lines.reduce((sum, line) => sum + lineTotal(line), 0);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -87,15 +144,32 @@ export default function BillsPage() {
       return;
     }
 
+    const invalid = lines.find((line) => {
+      if (line.quantity !== "") return !(parseInt(line.quantity, 10) > 0);
+      return !(parseFloat(line.amount) > 0);
+    });
+    if (invalid) {
+      setError("Each line needs a quantity, or a direct amount greater than 0.");
+      return;
+    }
+
     const payload = {
       customer_name: customerName,
       payment_method: paymentMethod,
       items: lines.map((line) => {
         const item = itemById(line.item_id);
+        if (line.quantity !== "") {
+          return {
+            item_name: item.name,
+            unit_price: item.price,
+            quantity: parseInt(line.quantity, 10) || 0,
+          };
+        }
         return {
           item_name: item.name,
           unit_price: item.price,
-          quantity: parseInt(line.quantity, 10) || 0,
+          quantity: 0,
+          amount: parseFloat(line.amount) || 0,
         };
       }),
     };
@@ -113,6 +187,74 @@ export default function BillsPage() {
       setError(err.message);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  // Voice ordering: capture speech, resolve it against the menu with the
+  // free on-device parser first, and only call out to the server-side (also
+  // free, but not-instant) Ollama fallback when that parser can't
+  // confidently match every part of what was heard. Either way the parsed
+  // lines land in the normal form for the admin to glance over and confirm —
+  // a misheard word creating the wrong sale silently would be worse than
+  // typing it manually.
+  async function handleVoiceOrder() {
+    setVoiceBanner(null);
+    setVoiceStatus("listening");
+
+    let transcript;
+    try {
+      transcript = await captureVoiceOrder();
+    } catch (err) {
+      setVoiceStatus("idle");
+      setVoiceBanner({ type: "error", text: err.message });
+      return;
+    }
+
+    const local = parseVoiceOrder(transcript, catalog);
+    const localLines = local.lines.map((l) => lineFromQuantity(catalog, l.item_id, l.quantity));
+    if (local.confident) {
+      setLines(localLines);
+      setVoiceStatus("idle");
+      setVoiceBanner({ type: "info", text: `Heard: "${transcript}" — review below and generate the bill.` });
+      return;
+    }
+
+    setVoiceStatus("resolving");
+    try {
+      const result = await api.parseVoiceOrder(transcript);
+      if (result.confident && result.lines.length > 0) {
+        setLines(result.lines.map((l) => lineFromQuantity(catalog, l.item_id, l.quantity)));
+        setVoiceBanner({
+          type: "info",
+          text: `Heard: "${transcript}" — matched via the voice assistant, review below.`,
+        });
+      } else if (localLines.length > 0) {
+        setLines(localLines);
+        setVoiceBanner({
+          type: "error",
+          text: `Heard: "${transcript}" — only matched ${localLines.length} item(s). Check for anything missed and add it manually.`,
+        });
+      } else {
+        setVoiceBanner({
+          type: "error",
+          text: `Heard: "${transcript}" — couldn't match any menu items. Please add them manually.`,
+        });
+      }
+    } catch (err) {
+      if (localLines.length > 0) {
+        setLines(localLines);
+        setVoiceBanner({
+          type: "error",
+          text: `Heard: "${transcript}" — only matched ${localLines.length} item(s) (voice assistant fallback unavailable: ${err.message}).`,
+        });
+      } else {
+        setVoiceBanner({
+          type: "error",
+          text: `Heard: "${transcript}" — couldn't match any menu items (${err.message}). Please add them manually.`,
+        });
+      }
+    } finally {
+      setVoiceStatus("idle");
     }
   }
 
@@ -166,6 +308,11 @@ export default function BillsPage() {
         <h3>New Bill</h3>
 
         {error && <p className="msg msg--error">{error}</p>}
+        {voiceBanner && (
+          <p className={`msg ${voiceBanner.type === "error" ? "msg--error" : "msg--success"}`}>
+            {voiceBanner.text}
+          </p>
+        )}
         {success && (
           <p className="msg msg--success">
             {success}
@@ -220,7 +367,7 @@ export default function BillsPage() {
                       <select
                         required
                         value={line.item_id}
-                        onChange={(e) => updateLine(i, "item_id", e.target.value)}
+                        onChange={(e) => updateItem(i, e.target.value)}
                       >
                         <option value="" disabled>
                           Select item...
@@ -243,12 +390,22 @@ export default function BillsPage() {
                     <div className="field">
                       <label>Qty</label>
                       <input
-                        required
                         type="number"
                         min="1"
                         step="1"
                         value={line.quantity}
-                        onChange={(e) => updateLine(i, "quantity", e.target.value)}
+                        onChange={(e) => updateQuantity(i, e.target.value)}
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Amount</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="₹"
+                        value={line.amount}
+                        onChange={(e) => updateAmount(i, e.target.value)}
                       />
                     </div>
                     <button
@@ -275,9 +432,25 @@ export default function BillsPage() {
                 gap: 12,
               }}
             >
-              <button type="button" className="btn btn--sm" onClick={addLine}>
-                + Add item
-              </button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="button" className="btn btn--sm" onClick={addLine}>
+                  + Add item
+                </button>
+                {isVoiceInputSupported() && (
+                  <button
+                    type="button"
+                    className="btn btn--sm"
+                    onClick={handleVoiceOrder}
+                    disabled={voiceStatus !== "idle"}
+                  >
+                    {voiceStatus === "listening"
+                      ? "Listening..."
+                      : voiceStatus === "resolving"
+                      ? "Matching..."
+                      : "🎤 Voice order"}
+                  </button>
+                )}
+              </div>
               <strong style={{ fontSize: "1.2rem" }}>
                 Total: ₹{runningTotal.toFixed(2)}
               </strong>
@@ -363,7 +536,7 @@ export default function BillsPage() {
                     <tr key={it.id}>
                       <td>{it.item_name}</td>
                       <td>₹{it.unit_price.toFixed(2)}</td>
-                      <td>{it.quantity}</td>
+                      <td>{it.quantity > 0 ? it.quantity : "—"}</td>
                       <td>₹{it.line_total.toFixed(2)}</td>
                     </tr>
                   ))}

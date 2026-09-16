@@ -1,17 +1,38 @@
-const STORAGE_KEY = "admin_token";
+import { api } from "./api.js";
+
+let currentUser = null;
+
+export async function fetchMe() {
+  try {
+    currentUser = await api.me();
+  } catch {
+    currentUser = null;
+  }
+  return currentUser;
+}
+
+export function getUser() {
+  return currentUser;
+}
 
 export function isAuthed() {
-  return !!sessionStorage.getItem(STORAGE_KEY);
+  return !!currentUser;
 }
 
-export function getToken() {
-  return sessionStorage.getItem(STORAGE_KEY) || "";
+export function isAdmin() {
+  return currentUser?.role === "admin";
 }
 
-export function setToken(token) {
-  sessionStorage.setItem(STORAGE_KEY, token);
+export function setUser(user) {
+  currentUser = user;
 }
 
-export function logout() {
-  sessionStorage.removeItem(STORAGE_KEY);
+export async function logout() {
+  try {
+    await api.logout();
+  } catch {
+    // already logged out server-side, or the request failed — either way
+    // clear local state so the UI reflects a logged-out session.
+  }
+  currentUser = null;
 }

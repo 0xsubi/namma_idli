@@ -1,20 +1,25 @@
-import { getToken } from "./auth.js";
-
 export const API_ORIGIN =
   import.meta.env.RUNNING_LOCALLY === "true"
     ? "http://localhost:8080"
     : "https://namma-idli-api.0xlab.in";
 const BASE = `${API_ORIGIN}/api`;
 
+let onUnauthorized = () => {};
+export function setUnauthorizedHandler(fn) {
+  onUnauthorized = fn;
+}
+
 async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
     ...options,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      "X-Admin-Token": getToken(),
       ...options.headers,
     },
   });
+
+  if (res.status === 401) onUnauthorized();
 
   const isJson = res.headers.get("content-type")?.includes("application/json");
   const body = isJson ? await res.json().catch(() => null) : null;
@@ -33,9 +38,8 @@ function query(params = {}) {
 }
 
 async function requestBytes(path) {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { "X-Admin-Token": getToken() },
-  });
+  const res = await fetch(`${BASE}${path}`, { credentials: "include" });
+  if (res.status === 401) onUnauthorized();
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     throw new Error(body?.error || `Request failed (${res.status})`);
@@ -44,6 +48,22 @@ async function requestBytes(path) {
 }
 
 export const api = {
+  login: (username, password) =>
+    request("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
+  logout: () => request("/auth/logout", { method: "POST" }),
+  me: () => request("/auth/me"),
+  changePassword: (currentPassword, newPassword) =>
+    request("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }),
+
+  listUsers: () => request("/users"),
+  createUser: (data) => request("/users", { method: "POST", body: JSON.stringify(data) }),
+  updateUserRole: (id, role) =>
+    request(`/users/${id}`, { method: "PATCH", body: JSON.stringify({ role }) }),
+  deleteUser: (id) => request(`/users/${id}`, { method: "DELETE" }),
+
   createItem: (data) =>
     request("/items", { method: "POST", body: JSON.stringify(data) }),
   listItems: () => request("/items"),
@@ -55,9 +75,10 @@ export const api = {
     form.append("image", file);
     const res = await fetch(`${BASE}/items/${id}/image`, {
       method: "POST",
-      headers: { "X-Admin-Token": getToken() },
+      credentials: "include",
       body: form,
     });
+    if (res.status === 401) onUnauthorized();
     const isJson = res.headers.get("content-type")?.includes("application/json");
     const body = isJson ? await res.json().catch(() => null) : null;
     if (!res.ok) {

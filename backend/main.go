@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	webpush "github.com/SherClockHolmes/webpush-go"
@@ -21,7 +22,8 @@ type server struct {
 	vapidPublicKey  string
 	vapidPrivateKey string
 	vapidSubject    string
-	adminToken      string
+	cookieSecure    bool
+	cookieSameSite  http.SameSite
 	fcmProjectID    string
 	fcmTokenSource  oauth2.TokenSource
 	uploadsDir      string
@@ -56,16 +58,30 @@ func main() {
 	if err := migrate(db); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
+	if err := bootstrapAdmin(db); err != nil {
+		log.Fatalf("bootstrap admin: %v", err)
+	}
 
 	vapidSubject := os.Getenv("VAPID_SUBJECT")
 	if vapidSubject == "" {
 		vapidSubject = "mailto:admin@example.com"
 	}
 
-	adminToken := os.Getenv("ADMIN_TOKEN")
-	if adminToken == "" {
-		adminToken = "hunter2"
-		log.Println("ADMIN_TOKEN not set — defaulting to the placeholder token. Set ADMIN_TOKEN before deploying anywhere reachable from outside your machine.")
+	adminOrigins := map[string]bool{}
+	for _, origin := range strings.Split(os.Getenv("ADMIN_ORIGINS"), ",") {
+		if origin = strings.TrimSpace(origin); origin != "" {
+			adminOrigins[origin] = true
+		}
+	}
+	if len(adminOrigins) == 0 {
+		adminOrigins = map[string]bool{"http://localhost:5174": true, "https://localhost": true}
+		log.Println("ADMIN_ORIGINS not set — defaulting to http://localhost:5174,https://localhost (local dev + Capacitor Android). Set ADMIN_ORIGINS to your deployed admin origin(s) in production.")
+	}
+
+	cookieSecure := os.Getenv("COOKIE_SECURE") != "false"
+	cookieSameSite := http.SameSiteNoneMode
+	if os.Getenv("COOKIE_SAMESITE") == "lax" {
+		cookieSameSite = http.SameSiteLaxMode
 	}
 
 	uploadsDir := os.Getenv("UPLOADS_DIR")
@@ -81,7 +97,8 @@ func main() {
 		vapidPublicKey:  os.Getenv("VAPID_PUBLIC_KEY"),
 		vapidPrivateKey: os.Getenv("VAPID_PRIVATE_KEY"),
 		vapidSubject:    vapidSubject,
-		adminToken:      adminToken,
+		cookieSecure:    cookieSecure,
+		cookieSameSite:  cookieSameSite,
 		uploadsDir:      uploadsDir,
 	}
 	if s.vapidPublicKey == "" || s.vapidPrivateKey == "" {
@@ -96,49 +113,60 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	admin := s.requireAdminToken
+	authed := s.requireAuth
+	adminOnly := s.requireAdmin
 
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 
-	mux.HandleFunc("POST /api/items", admin(s.handleCreateItem))
-	mux.HandleFunc("GET /api/items", admin(s.handleListItems))
-	mux.HandleFunc("PUT /api/items/{id}", admin(s.handleUpdateItem))
-	mux.HandleFunc("DELETE /api/items/{id}", admin(s.handleDeleteItem))
-	mux.HandleFunc("POST /api/items/{id}/image", admin(s.handleUploadItemImage))
+	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
+	mux.HandleFunc("POST /api/auth/logout", s.handleLogout)
+	mux.HandleFunc("GET /api/auth/me", authed(s.handleMe))
+	mux.HandleFunc("POST /api/auth/change-password", authed(s.handleChangePassword))
 
-	// The storefront's menu is public — no admin token needed to browse it.
+	mux.HandleFunc("GET /api/users", adminOnly(s.handleListUsers))
+	mux.HandleFunc("POST /api/users", adminOnly(s.handleCreateUser))
+	mux.HandleFunc("PATCH /api/users/{id}", adminOnly(s.handleUpdateUserRole))
+	mux.HandleFunc("DELETE /api/users/{id}", adminOnly(s.handleDeleteUser))
+
+	mux.HandleFunc("POST /api/items", authed(s.handleCreateItem))
+	mux.HandleFunc("GET /api/items", authed(s.handleListItems))
+	mux.HandleFunc("PUT /api/items/{id}", authed(s.handleUpdateItem))
+	mux.HandleFunc("DELETE /api/items/{id}", authed(s.handleDeleteItem))
+	mux.HandleFunc("POST /api/items/{id}/image", authed(s.handleUploadItemImage))
+
+	// The storefront's menu is public — no login needed to browse it.
 	mux.HandleFunc("GET /api/menu", s.handleListItems)
 	mux.Handle("GET /uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(s.uploadsDir))))
 
-	mux.HandleFunc("POST /api/bills", admin(s.handleCreateBill))
-	mux.HandleFunc("GET /api/bills", admin(s.handleListBills))
-	mux.HandleFunc("GET /api/bills/{id}", admin(s.handleGetBill))
-	mux.HandleFunc("GET /api/bills/{id}/escpos", admin(s.handleBillEscpos))
+	mux.HandleFunc("POST /api/bills", authed(s.handleCreateBill))
+	mux.HandleFunc("GET /api/bills", authed(s.handleListBills))
+	mux.HandleFunc("GET /api/bills/{id}", authed(s.handleGetBill))
+	mux.HandleFunc("GET /api/bills/{id}/escpos", authed(s.handleBillEscpos))
 
-	mux.HandleFunc("POST /api/sales", admin(s.handleCreateSale))
-	mux.HandleFunc("GET /api/sales", admin(s.handleListSales))
+	mux.HandleFunc("POST /api/sales", authed(s.handleCreateSale))
+	mux.HandleFunc("GET /api/sales", authed(s.handleListSales))
 
-	mux.HandleFunc("GET /api/analytics/summary", admin(s.handleAnalyticsSummary))
+	mux.HandleFunc("GET /api/analytics/summary", authed(s.handleAnalyticsSummary))
 
-	mux.HandleFunc("POST /api/voice/parse", admin(s.handleVoiceParse))
+	mux.HandleFunc("POST /api/voice/parse", authed(s.handleVoiceParse))
 
 	// Order creation is public — it's what the storefront calls when a
 	// customer places an order. Everything else about orders is staff-only.
 	mux.HandleFunc("POST /api/orders", s.handleCreateOrder)
-	mux.HandleFunc("GET /api/orders", admin(s.handleListOrders))
-	mux.HandleFunc("GET /api/orders/{id}", admin(s.handleGetOrder))
-	mux.HandleFunc("PATCH /api/orders/{id}", admin(s.handleUpdateOrderStatus))
-	mux.HandleFunc("POST /api/orders/{id}/bill", admin(s.handleConvertOrderToBill))
+	mux.HandleFunc("GET /api/orders", authed(s.handleListOrders))
+	mux.HandleFunc("GET /api/orders/{id}", authed(s.handleGetOrder))
+	mux.HandleFunc("PATCH /api/orders/{id}", authed(s.handleUpdateOrderStatus))
+	mux.HandleFunc("POST /api/orders/{id}/bill", authed(s.handleConvertOrderToBill))
 
-	mux.HandleFunc("GET /api/push/vapid-public-key", admin(s.handleVapidPublicKey))
-	mux.HandleFunc("POST /api/push/subscribe", admin(s.handleSubscribe))
-	mux.HandleFunc("POST /api/push/unsubscribe", admin(s.handleUnsubscribe))
-	mux.HandleFunc("POST /api/push/fcm/register", admin(s.handleRegisterFcmToken))
-	mux.HandleFunc("POST /api/push/fcm/unregister", admin(s.handleUnregisterFcmToken))
+	mux.HandleFunc("GET /api/push/vapid-public-key", authed(s.handleVapidPublicKey))
+	mux.HandleFunc("POST /api/push/subscribe", authed(s.handleSubscribe))
+	mux.HandleFunc("POST /api/push/unsubscribe", authed(s.handleUnsubscribe))
+	mux.HandleFunc("POST /api/push/fcm/register", authed(s.handleRegisterFcmToken))
+	mux.HandleFunc("POST /api/push/fcm/unregister", authed(s.handleUnregisterFcmToken))
 
 	addr := ":8080"
 	log.Printf("listening on %s", addr)
-	if err := http.ListenAndServe(addr, withCORS(mux)); err != nil {
+	if err := http.ListenAndServe(addr, withCORS(adminOrigins, mux)); err != nil {
 		log.Fatal(err)
 	}
 }

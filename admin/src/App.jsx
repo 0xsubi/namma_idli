@@ -1,11 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import OrdersPage from "./pages/OrdersPage.jsx";
 import BillsPage from "./pages/BillsPage.jsx";
 import SalesPage from "./pages/SalesPage.jsx";
 import AnalyticsPage from "./pages/AnalyticsPage.jsx";
 import ItemsPage from "./pages/ItemsPage.jsx";
+import UsersPage from "./pages/UsersPage.jsx";
 import Login from "./Login.jsx";
-import { isAuthed, logout } from "./auth.js";
+import ChangePasswordModal from "./ChangePasswordModal.jsx";
+import { fetchMe, isAdmin, logout, setUser } from "./auth.js";
+import { setUnauthorizedHandler } from "./api.js";
 
 const TABS = [
   { id: "orders", label: "Orders", component: OrdersPage },
@@ -13,16 +16,40 @@ const TABS = [
   { id: "items", label: "Items", component: ItemsPage },
   { id: "sales", label: "Sales", component: SalesPage },
   { id: "analytics", label: "Analytics", component: AnalyticsPage },
+  { id: "team", label: "Team", component: UsersPage, adminOnly: true },
 ];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("bills");
-  const [authed, setAuthed] = useState(isAuthed());
-  const Active = TABS.find((t) => t.id === activeTab).component;
+  const [authed, setAuthed] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => setAuthed(false));
+    fetchMe().then((user) => {
+      setAuthed(!!user);
+      setChecking(false);
+    });
+  }, []);
+
+  if (checking) {
+    return null;
+  }
 
   if (!authed) {
-    return <Login onSuccess={() => setAuthed(true)} />;
+    return (
+      <Login
+        onSuccess={(user) => {
+          setUser(user);
+          setAuthed(true);
+        }}
+      />
+    );
   }
+
+  const tabs = TABS.filter((tab) => !tab.adminOnly || isAdmin());
+  const Active = (tabs.find((t) => t.id === activeTab) || tabs[0]).component;
 
   return (
     <div className="app">
@@ -35,8 +62,14 @@ export default function App() {
           <span className="site-header__badge">Staff Only</span>
           <button
             className="btn btn--sm site-header__logout"
-            onClick={() => {
-              logout();
+            onClick={() => setShowChangePassword(true)}
+          >
+            Change Password
+          </button>
+          <button
+            className="btn btn--sm site-header__logout"
+            onClick={async () => {
+              await logout();
               setAuthed(false);
             }}
           >
@@ -47,7 +80,7 @@ export default function App() {
 
       <nav className="admin-nav">
         <div className="admin-nav__inner">
-          {TABS.map((tab) => (
+          {tabs.map((tab) => (
             <button
               key={tab.id}
               className={`tab-btn${activeTab === tab.id ? " is-active" : ""}`}
@@ -62,6 +95,10 @@ export default function App() {
       <main className="main">
         <Active />
       </main>
+
+      {showChangePassword && (
+        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+      )}
     </div>
   );
 }
